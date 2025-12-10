@@ -39,17 +39,22 @@ public class UserController {
     private EmailService emailService;
 
     // ---------------------------------------------------------
-    // TEST
+    // TEST EMAIL
     // ---------------------------------------------------------
     @GetMapping("/test_email")
     public String testEmail() {
         log.info("[TEST_EMAIL] Sending test OTP email");
-        emailService.sendOtp("naveenkishore20022@gmail.com", "123456");
-        return "Test Email Sent!";
+        try {
+            emailService.sendOtp("naveenkishore20022@gmail.com", "123456");
+            log.info("[TEST_EMAIL] Email send attempted");
+        } catch (Exception e) {
+            log.error("[TEST_EMAIL] Error sending test email: {}", e.getMessage(), e);
+        }
+        return "Test Email Attempted";
     }
 
     // ---------------------------------------------------------
-    // REGISTER — SEND OTP FOR REGISTRATION
+    // REGISTER
     // ---------------------------------------------------------
     @PostMapping("/register")
     public Response registerUser(@RequestBody users u) {
@@ -67,8 +72,6 @@ public class UserController {
 
         // Generate OTP
         String otp = OtpUtil.generateOtp();
-        log.debug("[REGISTER] Generated OTP for email={} (not logging value)", u.getEmail());
-
         EmailOtp emailOtp = new EmailOtp(
                 u.getEmail(),
                 otp,
@@ -77,15 +80,19 @@ public class UserController {
         otpRepo.save(emailOtp);
         log.info("[REGISTER] OTP stored for email={} with expiry={}", u.getEmail(), emailOtp.getExpiry());
 
-        // Send OTP Email
-        emailService.sendOtp(u.getEmail(), otp);
-        log.info("[REGISTER] OTP email triggered for email={}", u.getEmail());
+        // Send OTP Email (non-fatal)
+        try {
+            emailService.sendOtp(u.getEmail(), otp);
+            log.info("[REGISTER] OTP email triggered for email={}", u.getEmail());
+        } catch (Exception e) {
+            log.error("[REGISTER] Failed to send OTP email to {}: {}", u.getEmail(), e.getMessage());
+        }
 
-        return new Response("OTP sent to your email", null, 200);
+        return new Response("OTP sent to your email (or attempted)", null, 200);
     }
 
     // ---------------------------------------------------------
-    // VERIFY OTP (REGISTRATION)
+    // VERIFY OTP
     // ---------------------------------------------------------
     @PostMapping("/verify-otp")
     public Response verifyOtp(@RequestBody Map<String, String> data) {
@@ -119,13 +126,13 @@ public class UserController {
         log.info("[VERIFY_OTP] Email verified & user enabled: {}", email);
 
         otpRepo.delete(emailOtp);
-        log.debug("[VERIFY_OTP] OTP record deleted for email={}", email);
+        log.debug("[VERIFY_OTP] OTP deleted");
 
         return new Response("Email verified successfully!", null, 200);
     }
 
     // ---------------------------------------------------------
-    // RESEND OTP (REGISTRATION)
+    // RESEND OTP
     // ---------------------------------------------------------
     @PostMapping("/resend-otp")
     public Response resendOtp(@RequestBody Map<String, String> data) {
@@ -152,12 +159,16 @@ public class UserController {
                 LocalDateTime.now().plusMinutes(5)
         );
         otpRepo.save(emailOtp);
-        log.info("[RESEND_OTP] New OTP stored for email={} with expiry={}", email, emailOtp.getExpiry());
+        log.info("[RESEND_OTP] New OTP stored with expiry={}", emailOtp.getExpiry());
 
-        emailService.sendOtp(email, otp);
-        log.info("[RESEND_OTP] OTP email resent to email={}", email);
+        try {
+            emailService.sendOtp(email, otp);
+            log.info("[RESEND_OTP] OTP sent to email={}", email);
+        } catch (Exception e) {
+            log.error("[RESEND_OTP] Failed to resend OTP to {}: {}", email, e.getMessage());
+        }
 
-        return new Response("OTP resent successfully", null, 200);
+        return new Response("OTP resent (or attempted)", null, 200);
     }
 
     // ---------------------------------------------------------
@@ -178,12 +189,12 @@ public class UserController {
         users user = opt.get();
 
         if (!user.isEnabled()) {
-          log.warn("[LOGIN] Email not verified for email={}", u.getEmail());
-          return new Response("Email not verified. Please verify OTP.", null, 401);
+            log.warn("[LOGIN] Email not verified for email={}", u.getEmail());
+            return new Response("Email not verified. Please verify OTP.", null, 401);
         }
 
         Response resp = userService.loginUser(u.getEmail(), u.getPassword());
-        log.info("[LOGIN] Login result for email={}: status={}", u.getEmail(), resp.getStatus());
+        log.info("[LOGIN] Login result: status={}", resp.getStatus());
 
         return resp;
     }
@@ -197,13 +208,11 @@ public class UserController {
         log.info("[FORGOT_PWD] Forgot password requested for email={}", email);
 
         if (email == null || email.isBlank()) {
-            log.warn("[FORGOT_PWD] Email missing in request");
             return new Response("Email is required", null, 400);
         }
 
         Optional<users> optUser = userRepo.findByEmail(email);
         if (optUser.isEmpty()) {
-            log.warn("[FORGOT_PWD] Email not registered: {}", email);
             return new Response("Email not registered", null, 400);
         }
 
@@ -214,12 +223,16 @@ public class UserController {
                 LocalDateTime.now().plusMinutes(10)
         );
         otpRepo.save(emailOtp);
-        log.info("[FORGOT_PWD] Reset OTP stored for email={} expiry={}", email, emailOtp.getExpiry());
+        log.info("[FORGOT_PWD] OTP stored for reset");
 
-        emailService.sendOtp(email, otp);
-        log.info("[FORGOT_PWD] Reset OTP email sent to email={}", email);
+        try {
+            emailService.sendOtp(email, otp);
+            log.info("[FORGOT_PWD] OTP email sent");
+        } catch (Exception e) {
+            log.error("[FORGOT_PWD] Failed to send reset OTP: {}", e.getMessage());
+        }
 
-        return new Response("Reset OTP sent to your email", null, 200);
+        return new Response("Reset OTP sent (or attempted)", null, 200);
     }
 
     // ---------------------------------------------------------
@@ -233,30 +246,25 @@ public class UserController {
         log.info("[VERIFY_RESET_OTP] Verifying reset OTP for email={}", email);
 
         if (email == null || otp == null) {
-            log.warn("[VERIFY_RESET_OTP] Missing email or OTP in request");
             return new Response("Email and OTP are required", null, 400);
         }
 
         Optional<EmailOtp> otpOpt = otpRepo.findByEmail(email);
         if (otpOpt.isEmpty()) {
-            log.warn("[VERIFY_RESET_OTP] OTP not found for email={}", email);
-            return new Response("OTP not found, please request again", null, 400);
+            return new Response("OTP not found", null, 400);
         }
 
         EmailOtp emailOtp = otpOpt.get();
 
         if (!emailOtp.getOtp().equals(otp)) {
-            log.warn("[VERIFY_RESET_OTP] Invalid OTP for email={}", email);
             return new Response("Invalid OTP", null, 400);
         }
 
         if (emailOtp.getExpiry().isBefore(LocalDateTime.now())) {
-            log.warn("[VERIFY_RESET_OTP] OTP expired for email={}", email);
-            return new Response("OTP expired, request a new one", null, 400);
+            return new Response("OTP expired", null, 400);
         }
 
-        log.info("[VERIFY_RESET_OTP] OTP verification successful for email={}", email);
-        return new Response("OTP verified, you can reset password now", null, 200);
+        return new Response("OTP verified, you can reset password", null, 200);
     }
 
     // ---------------------------------------------------------
@@ -269,50 +277,44 @@ public class UserController {
         String otp = body.get("otp");
         String newPassword = body.get("newPassword");
 
-        log.info("[RESET_PWD] Reset password request for email={}", email);
+        log.info("[RESET_PWD] Reset password request for {}", email);
 
         if (email == null || otp == null || newPassword == null) {
-            log.warn("[RESET_PWD] Missing fields in request for email={}", email);
-            return new Response("Email, OTP and new password are required", null, 400);
+            return new Response("Missing fields", null, 400);
         }
 
         Optional<EmailOtp> otpOpt = otpRepo.findByEmail(email);
         if (otpOpt.isEmpty()) {
-            log.warn("[RESET_PWD] OTP not found for email={}", email);
-            return new Response("OTP not found, please request again", null, 400);
+            return new Response("OTP not found", null, 400);
         }
 
         EmailOtp emailOtp = otpOpt.get();
 
         if (!emailOtp.getOtp().equals(otp)) {
-            log.warn("[RESET_PWD] Invalid OTP for email={}", email);
             return new Response("Invalid OTP", null, 400);
         }
 
         if (emailOtp.getExpiry().isBefore(LocalDateTime.now())) {
-            log.warn("[RESET_PWD] OTP expired for email={}", email);
-            return new Response("OTP expired, please request new OTP", null, 400);
+            return new Response("OTP expired", null, 400);
         }
 
         Optional<users> optUser = userRepo.findByEmail(email);
         if (optUser.isEmpty()) {
-            log.error("[RESET_PWD] User not found when resetting password, email={}", email);
             return new Response("User not found", null, 400);
         }
 
         users user = optUser.get();
-        user.setPassword(newPassword);  // ❗ In real system, hash password
+        user.setPassword(newPassword); // ⚠️ In real projects hash this
         userRepo.save(user);
-        log.info("[RESET_PWD] Password reset successful for email={}", email);
 
         otpRepo.delete(emailOtp);
-        log.debug("[RESET_PWD] OTP deleted after reset for email={}", email);
 
+        log.info("[RESET_PWD] Password reset successful");
         return new Response("Password reset successfully", null, 200);
     }
 
     // ---------------------------------------------------------
-    // ADD ADMIN (from existing admin)
+    // ADD ADMIN
     // ---------------------------------------------------------
     @PostMapping("/add-admin")
     public Response addAdmin(@RequestBody Map<String, String> body) {
@@ -320,25 +322,20 @@ public class UserController {
         String email = body.get("email");
         String password = body.get("password");
 
-        log.info("[ADD_ADMIN] Request to add admin with email={}", email);
+        log.info("[ADD_ADMIN] Request to add admin {}", email);
 
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
-            log.warn("[ADD_ADMIN] Email or password missing");
             return new Response("Email and password are required", null, 400);
         }
 
-        Optional<users> existing = userRepo.findByEmail(email);
-        if (existing.isPresent()) {
-            log.warn("[ADD_ADMIN] User with this email already exists: {}", email);
-            return new Response("User with this email already exists", null, 400);
+        if (userRepo.findByEmail(email).isPresent()) {
+            return new Response("User already exists", null, 400);
         }
 
         users admin = new users(email, password, "ADMIN");
-        admin.setEnabled(true); // admin is active immediately
+        admin.setEnabled(true);
         userRepo.save(admin);
 
-        log.info("[ADD_ADMIN] Admin created successfully for email={}", email);
         return new Response("Admin created successfully", null, 200);
     }
-
 }
