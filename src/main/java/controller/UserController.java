@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.time.Duration;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -343,38 +343,39 @@ public class UserController {
     
     
 
-@GetMapping("/debug-smtp")
-public Response debugSmtp() {
-    String host = "smtp.gmail.com";
-    int port = 587;
-    int timeoutMs = 5000; // 5s - keeps request fast
-    try (Socket socket = new Socket()) {
-        long start = System.currentTimeMillis();
-        socket.connect(new InetSocketAddress(host, port), timeoutMs);
-        long took = System.currentTimeMillis() - start;
-        return new Response("OK: Connected to " + host + ":" + port + " in " + took + "ms", null, 200);
-    } catch (Exception e) {
-        // return helpful debug text and log full stacktrace
-        log.error("[DEBUG_SMTP] Connection test failed: {}", e.getMessage(), e);
-        return new Response("ERROR: Could not connect to " + host + ":" + port + " -> " + e.getClass().getSimpleName() + ": " + e.getMessage(), null, 500);
+    // imports: java.net.InetSocketAddress; java.net.Socket;
+    @GetMapping("/debug-smtp")
+    public Response debugSmtp() {
+        String host = "smtp.gmail.com";
+        int port = 587;
+        int timeoutMs = 5000; // 5s - keeps request fast
+        try (Socket socket = new Socket()) {
+            long start = System.currentTimeMillis();
+            socket.connect(new InetSocketAddress(host, port), timeoutMs);
+            long took = System.currentTimeMillis() - start;
+            return new Response("OK: Connected to " + host + ":" + port + " in " + took + "ms", null, 200);
+        } catch (Exception e) {
+            // return helpful debug text and log full stacktrace
+            log.error("[DEBUG_SMTP] Connection test failed: {}", e.getMessage(), e);
+            return new Response("ERROR: Could not connect to " + host + ":" + port + " -> " + e.getClass().getSimpleName() + ": " + e.getMessage(), null, 500);
+        }
     }
-}
-
-
-//imports: java.net.InetSocketAddress; java.net.Socket;
-@GetMapping("/debug-smtp-465")
-public Response debugSmtp465() {
- String host = "smtp.gmail.com";
- int port = 465;
- int timeoutMs = 5000;
- try (Socket socket = new Socket()) {
-     long start = System.currentTimeMillis();
-     socket.connect(new InetSocketAddress(host, port), timeoutMs);
-     long took = System.currentTimeMillis() - start;
-     return new Response("OK: Connected to " + host + ":" + port + " in " + took + "ms", null, 200);
- } catch (Exception e) {
-     log.error("[DEBUG_SMTP_465] Connection test failed: {}", e.getMessage(), e);
-     return new Response("ERROR: Could not connect to " + host + ":" + port + " -> " + e.getClass().getSimpleName() + ": " + e.getMessage(), null, 500);
- }
-}
+    
+    
+    //imports: java.net.InetSocketAddress; java.net.Socket;
+    @GetMapping("/debug-smtp-465")
+    public Response debugSmtp465() {
+     String host = "smtp.gmail.com";
+     int port = 465;
+     int timeoutMs = 5000;
+     try (Socket socket = new Socket()) {
+         long start = System.currentTimeMillis();
+         socket.connect(new InetSocketAddress(host, port), timeoutMs);
+         long took = System.currentTimeMillis() - start;
+         return new Response("OK: Connected to " + host + ":" + port + " in " + took + "ms", null, 200);
+     } catch (Exception e) {
+         log.error("[DEBUG_SMTP_465] Connection test failed: {}", e.getMessage(), e);
+         return new Response("ERROR: Could not connect to " + host + ":" + port + " -> " + e.getClass().getSimpleName() + ": " + e.getMessage(), null, 500);
+     }
+    }
 }
