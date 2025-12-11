@@ -47,7 +47,7 @@ public class UserController {
     public String testEmail() {
         log.info("[TEST_EMAIL] Sending test OTP email");
         try {
-            emailService.sendOtp("naveenkishore20022@gmail.com", "123456");
+            emailService.sendOtp("vamsipatnaik3@gmail.com", "123456");
             log.info("[TEST_EMAIL] Email send attempted");
         } catch (Exception e) {
             log.error("[TEST_EMAIL] Error sending test email: {}", e.getMessage(), e);
